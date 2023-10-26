@@ -853,11 +853,13 @@ func (dsc *ReconcileDaemonSet) podsShouldBeOnNode(
 		// If a daemon pod failed, delete it
 		// If there's non-daemon pods left on this node, we will create it in the next sync loop
 		var daemonPodsRunning []*corev1.Pod
+		var failedPodCount int
 		for _, pod := range daemonPods {
 			if pod.DeletionTimestamp != nil {
 				continue
 			}
 			if pod.Status.Phase == corev1.PodFailed {
+				failedPodCount++
 				// This is a critical place where DS is often fighting with kubelet that rejects pods.
 				// We need to avoid hot looping and backoff.
 				backoffKey := failedPodsBackoffKey(ds, node.Name)
@@ -903,7 +905,7 @@ func (dsc *ReconcileDaemonSet) podsShouldBeOnNode(
 
 		if len(daemonPodsRunning) <= 1 {
 			// // There are no excess pods to be pruned
-			if len(daemonPodsRunning) == 0 && shouldRun {
+			if len(daemonPodsRunning) == 0 && shouldRun && failedPodCount < 2 {
 				// We are surging so we need to have at least one non-deleted pod on the node
 				nodesNeedingDaemonPods = append(nodesNeedingDaemonPods, node.Name)
 			}
